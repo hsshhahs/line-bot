@@ -6,11 +6,22 @@ import google.generativeai as genai
 import os
 
 app = Flask(__name__)
-line_bot_api = LineBotApi(os.getenv("LINE_TOKEN"))
-handler = WebhookHandler(os.getenv("LINE_SECRET"))
+LINE_TOKEN = os.getenv("LINE_TOKEN")
+LINE_SECRET = os.getenv("LINE_SECRET")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 # 改成@小助手
 BOT_AT = "@小助手"
+
+# 打印日志，部署后看Render日志就能知道读到的值
+print("===== 启动检测 =====")
+print("LINE_TOKEN:", "已读取" if LINE_TOKEN else "为空")
+print("LINE_SECRET:", "已读取" if LINE_SECRET else "为空")
+print("GEMINI_API_KEY:", "已读取" if GEMINI_API_KEY else "为空")
+print("====================")
+
+line_bot_api = LineBotApi(LINE_TOKEN)
+handler = WebhookHandler(LINE_SECRET)
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -38,7 +49,9 @@ def reply(event):
             ai_result = model.generate_content(question)
             answer = ai_result.text
         except Exception as e:
-            answer = "❌ AI出错了，稍后再试"
+            # 把错误原因打印到日志
+            print("Gemini调用异常：", str(e))
+            answer = "❌ AI出错了，稍后再试（可能是网络无法连接Gemini）"
 
     line_bot_api.reply_message(event.reply_token, TextSendMessage(answer))
 
