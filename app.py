@@ -8,11 +8,9 @@ import os
 app = Flask(__name__)
 line_bot_api = LineBotApi(os.getenv("LINE_TOKEN"))
 handler = WebhookHandler(os.getenv("LINE_SECRET"))
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
-
-# 改成你机器人的@ID
-BOT_AT = "@188syzg"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# 改成@小助手
+BOT_AT = "@小助手"
 
 @app.route("/callback", methods=["POST"])
 def callback():
@@ -27,17 +25,21 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def reply(event):
     msg = event.message.text.strip()
-    # 没有@机器人直接跳过，不说话
     if BOT_AT not in msg:
         return
-    # 去掉@标记，拿到问题
     question = msg.replace(BOT_AT, "").strip()
-    try:
-        # 叫Gemini回答
-        ai_result = model.generate_content(question)
-        answer = ai_result.text
-    except Exception as e:
-        answer = "抱歉，AI暂时无法回答这个问题"
+
+    if not GEMINI_API_KEY:
+        answer = "⚠️ 还没有填入Gemini API Key，暂时无法使用AI回答！"
+    else:
+        try:
+            genai.configure(api_key=GEMINI_API_KEY)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            ai_result = model.generate_content(question)
+            answer = ai_result.text
+        except Exception as e:
+            answer = "❌ AI出错了，稍后再试"
+
     line_bot_api.reply_message(event.reply_token, TextSendMessage(answer))
 
 if __name__ == "__main__":
