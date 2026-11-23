@@ -2,15 +2,20 @@ from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
+import google.generativeai as genai
 import os
 
 app = Flask(__name__)
 
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
+
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -26,7 +31,12 @@ def callback():
 def handle_message(event):
     text = event.message.text
     if text.startswith("@"):
-        reply = f"收到：{text}"
+        question = text.lstrip("@").strip()
+        try:
+            res = model.generate_content(question)
+            reply = res.text
+        except Exception as e:
+            reply = "AI出错了，等一下再试！"
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=reply)
