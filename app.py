@@ -14,8 +14,12 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-2.0-flash-lite")
+except Exception as err:
+    print("初始化Gemini失败：", err)
+    model = None
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -31,21 +35,18 @@ def callback():
 def handle_message(event):
     text = event.message.text
     print("收到消息：", text)
-
     if "@小助手" in text:
         question = text.replace("@小助手", "").strip()
-        print("提取问题：", question)
-
         if not question:
-            reply = "请在@小助手后面输入问题，比如：@小助手 你好"
+            reply = "请输入问题！"
+        elif model is None:
+            reply = "❌ Gemini初始化失败，密钥/模型不对"
         else:
             try:
                 res = model.generate_content(question)
                 reply = res.text
             except Exception as e:
-                print("Gemini 错误：", e)
-                reply = "AI出错了：" + str(e)
-
+                reply = "❌ API报错：" + str(e)
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=reply)
