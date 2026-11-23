@@ -6,54 +6,43 @@ import google.generativeai as genai
 import os
 
 app = Flask(__name__)
-LINE_TOKEN = os.getenv("LINE_TOKEN")
-LINE_SECRET = os.getenv("LINE_SECRET")
+
+# 读取环境变量
+LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
+LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# 改成@小助手
-BOT_AT = "@小助手"
+line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
+handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# 打印日志，部署后看Render日志就能知道读到的值
-print("===== 启动检测 =====")
-print("LINE_TOKEN:", "已读取" if LINE_TOKEN else "为空")
-print("LINE_SECRET:", "已读取" if LINE_SECRET else "为空")
-print("GEMINI_API_KEY:", "已读取" if GEMINI_API_KEY else "为空")
-print("====================")
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-2.0-flash")
 
-line_bot_api = LineBotApi(LINE_TOKEN)
-handler = WebhookHandler(LINE_SECRET)
-
-@app.route("/callback", methods=["POST"])
+@app.route("/callback", methods=['POST'])
 def callback():
-    sig = request.headers["X-Line-Signature"]
+    signature = request.headers['X-Line-Signature']
     body = request.get_data(as_text=True)
     try:
-        handler.handle(body, sig)
+        handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
-    return "OK"
+    return 'OK'
 
 @handler.add(MessageEvent, message=TextMessage)
-def reply(event):
-    msg = event.message.text.strip()
-    if BOT_AT not in msg:
-        return
-    question = msg.replace(BOT_AT, "").strip()
-
-    if not GEMINI_API_KEY:
-        answer = "⚠️ 还没有填入Gemini API Key，暂时无法使用AI回答！"
-    else:
-        try:
-            genai.configure(api_key=GEMINI_API_KEY)
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            ai_result = model.generate_content(question)
-            answer = ai_result.text
-        except Exception as e:
-            # 把错误原因打印到日志
-            print("Gemini调用异常：", str(e))
-            answer = "❌ AI出错了，稍后再试（可能是网络无法连接Gemini）"
-
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(answer))
+def handle_message(event):
+    text = event.message.text
+    # 只有被@才回复
+    if text.startswith("@"):
+        question = text.lstrip("@").strip()
+        if not question:
+            reply = "请在@后面输入问题！"
+        else:
+            res = model.generate_content(question)
+            reply = res.text
+        line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=reply)
+        )
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
