@@ -30,13 +30,22 @@ def callback():
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text
-    if text.startswith("@"):
-        question = text.lstrip("@").strip()
-        try:
-            res = model.generate_content(question)
-            reply = res.text
-        except Exception as e:
-            reply = "AI出错了，等一下再试！"
+    print("收到消息：", text)
+
+    if "@小助手" in text:
+        question = text.replace("@小助手", "").strip()
+        print("提取问题：", question)
+
+        if not question:
+            reply = "请在@小助手后面输入问题，比如：@小助手 你好"
+        else:
+            try:
+                res = model.generate_content(question)
+                reply = res.text
+            except Exception as e:
+                print("Gemini 错误：", e)
+                reply = "AI出错了：" + str(e)
+
         line_bot_api.reply_message(
             event.reply_token,
             TextSendMessage(text=reply)
